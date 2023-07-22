@@ -1,0 +1,91 @@
+/* Query 1: Which are the top 10 (most rented) family-friendly films? */
+
+SELECT f.title AS "Film Title",
+       COUNT(*) AS "Rental Count"
+  FROM film AS f
+  JOIN film_category AS fc
+    ON f.film_id = fc.film_id
+  JOIN (
+       SELECT *
+         FROM category
+        WHERE name IN
+	      ('Animation', 'Children', 'Classics', 'Comedy',	'Family', 'Music')
+       )   AS c
+    ON fc.category_id = c.category_id
+  JOIN inventory AS i
+    ON f.film_id = i.film_id
+  JOIN rental AS r
+    ON r.inventory_id = i.inventory_id
+ GROUP BY 1
+ ORDER BY 2 DESC
+ LIMIT 10;
+
+
+/* Query 2: What is the distribution of films within family-friendly categories
+as per rental duration? */
+
+WITH family_friendly_rentals AS (
+     SELECT f.title AS film_title, c.name AS category_name,
+            f.rental_duration AS rental_duration,
+            NTILE(4) OVER (ORDER BY f.rental_duration) AS standard_quartile
+       FROM film AS f
+       JOIN film_category AS fc
+ 	 ON f.film_id = fc.film_id
+       JOIN (
+ 	    SELECT *
+ 	      FROM category
+ 	     WHERE name IN
+ 		   ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+ 	    )   AS c
+ 	 ON fc.category_id = c.category_id
+ 		      										)
+SELECT category_name AS "Family-Friendly Category",
+       standard_quartile AS "Rental Length Category",
+       COUNT(film_title) AS "Film Count"
+  FROM family_friendly_rentals
+ GROUP BY 1, 2
+ ORDER BY 1, 2;
+
+
+/* Query 3: How have the stores performed in terms of monthly rental orders? */
+
+SELECT DATE_PART('year', r.rental_date) || '/' ||
+       DATE_PART('month', r.rental_date) AS "Year and Month",
+       s.store_id AS "Store ID",
+       COUNT(*) AS "Rental Count"
+  FROM store AS s
+  JOIN staff AS st
+    ON s.store_id = st.store_id
+  JOIN rental AS r
+    ON st.staff_id = r.staff_id
+ GROUP BY 1, 2
+ ORDER BY 1;
+
+
+/* Query 4: Who are our top 10 paying customers and what are their monthly
+payments like? */
+
+WITH top_ten_customers AS (
+     SELECT customer_id,
+       	    SUM(amount) AS amount_total
+       FROM payment AS p
+      GROUP BY 1
+      ORDER BY 2 DESC
+      LIMIT 10
+          )
+
+SELECT CONCAT(c.first_name, ' ', c.last_name) AS "Full Name",
+       DATE_PART('year', p.payment_date) || '-' ||
+       DATE_PART('month', p.payment_date) AS "Pay Month",
+       SUM(p.amount) AS "Pay Amount"
+  FROM (
+       SELECT *
+         FROM customer
+	WHERE customer_id IN
+	      (SELECT customer_id
+		 FROM top_ten_customers)
+       )   AS c
+  JOIN payment AS p
+    ON c.customer_id = p.customer_id
+ GROUP BY 1, 2
+ ORDER BY 1, 2;
